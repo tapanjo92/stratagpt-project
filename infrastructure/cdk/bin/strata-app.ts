@@ -4,7 +4,7 @@ import * as cdk from 'aws-cdk-lib';
 import { NetworkStack } from '../stacks/network-stack';
 import { StorageStack } from '../stacks/storage-stack';
 import { ComputeStack } from '../stacks/compute-stack';
-import { IngestionStack } from '../stacks/ingestion-stack';
+import { IngestionStack } from '../stacks/ingestion-stack-v2';
 import { OpenSearchStack } from '../stacks/opensearch-stack';
 import { MonitoringStack } from '../stacks/monitoring-stack';
 
@@ -12,7 +12,7 @@ const app = new cdk.App();
 
 const env = {
   account: process.env.CDK_DEFAULT_ACCOUNT || process.env.AWS_ACCOUNT_ID,
-  region: process.env.CDK_DEFAULT_REGION || 'ap-southeast-2'
+  region: process.env.CDK_DEFAULT_REGION || 'ap-south-1'
 };
 
 const stackPrefix = app.node.tryGetContext('stackPrefix') || 'StrataGPT';

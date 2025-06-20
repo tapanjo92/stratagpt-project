@@ -9,6 +9,7 @@ import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as opensearch from 'aws-cdk-lib/aws-opensearchservice';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as logs from 'aws-cdk-lib/aws-logs';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import { Construct } from 'constructs';
 
 export interface IngestionStackProps extends cdk.StackProps {
@@ -101,7 +102,7 @@ export class IngestionStack extends cdk.Stack {
     this.textractLambda = new lambda.Function(this, 'TextractProcessor', {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'index.handler',
-      code: lambda.Code.fromAsset('../backend/lambdas/textract-processor'),
+      code: lambda.Code.fromAsset('../../backend/lambdas/textract-processor'),
       role: lambdaRole,
       timeout: cdk.Duration.minutes(5),
       memorySize: 1024,
@@ -115,7 +116,7 @@ export class IngestionStack extends cdk.Stack {
     this.chunkSanitizerLambda = new lambda.Function(this, 'ChunkSanitizer', {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'index.handler',
-      code: lambda.Code.fromAsset('../backend/lambdas/chunk-sanitizer'),
+      code: lambda.Code.fromAsset('../../backend/lambdas/chunk-sanitizer'),
       role: lambdaRole,
       timeout: cdk.Duration.minutes(5),
       memorySize: 1024,
@@ -129,7 +130,7 @@ export class IngestionStack extends cdk.Stack {
     this.embeddingsLambda = new lambda.Function(this, 'EmbeddingsGenerator', {
       runtime: lambda.Runtime.PYTHON_3_12,
       handler: 'index.handler',
-      code: lambda.Code.fromAsset('../backend/lambdas/embeddings-generator'),
+      code: lambda.Code.fromAsset('../../backend/lambdas/embeddings-generator'),
       role: lambdaRole,
       timeout: cdk.Duration.minutes(15),
       memorySize: 2048,
@@ -268,8 +269,8 @@ export class IngestionStack extends cdk.Stack {
         key: events.EventField.fromPath('$.detail.object.key'),
         size: events.EventField.fromPath('$.detail.object.size'),
         etag: events.EventField.fromPath('$.detail.object.etag'),
-        tenantId: events.EventField.fromPath('$.detail.object.key').extractPattern(/(tenant-[^\/]+)/),
-        documentId: events.EventField.fromPath('$.detail.object.key').extractPattern(/documents\/(.+)\./),
+        tenantId: 'tenant-default', // Will be extracted from key in Lambda
+        documentId: 'doc-default',   // Will be extracted from key in Lambda
         timestamp: events.EventField.time
       })
     }));

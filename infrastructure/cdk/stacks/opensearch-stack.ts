@@ -38,19 +38,18 @@ export class OpenSearchStack extends cdk.Stack {
       },
       ebs: {
         volumeSize: 100,
-        volumeType: ec2.EbsDeviceVolumeType.GP3,
-        encrypted: true
+        volumeType: ec2.EbsDeviceVolumeType.GP3
       },
       nodeToNodeEncryption: true,
       encryptionAtRest: {
         enabled: true
       },
-      vpcOptions: {
-        securityGroups: [securityGroup],
-        subnets: props.vpc.selectSubnets({
-          subnetType: ec2.SubnetType.PRIVATE_ISOLATED
-        }).subnets.slice(0, 2)
-      },
+      vpc: props.vpc,
+      vpcSubnets: [{
+        subnetType: ec2.SubnetType.PRIVATE_ISOLATED
+      }],
+      securityGroups: [securityGroup],
+      enforceHttps: true,
       fineGrainedAccessControl: {
         masterUserArn: new iam.ArnPrincipal(
           `arn:aws:iam::${this.account}:root`
