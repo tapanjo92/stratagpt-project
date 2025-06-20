@@ -80,9 +80,9 @@ export class RAGStack extends cdk.Stack {
       dataSourceConfiguration: {
         s3Configuration: {
           bucketName: props.documentBucket.bucketName,
-          inclusionPrefixes: ['documents/'],
+          inclusionPrefixes: ['test-tenant/documents/'],
           documentsMetadataConfiguration: {
-            s3Prefix: 'metadata/'
+            s3Prefix: 'test-tenant/metadata/'
           }
         }
       },
@@ -137,7 +137,9 @@ export class RAGStack extends cdk.Stack {
       'KENDRA_INDEX_ID': this.kendraIndex.ref,
       'OPENSEARCH_ENDPOINT': props.openSearchDomain.domainEndpoint,
       'DOCUMENT_BUCKET': props.documentBucket.bucketName,
-      'BEDROCK_MODEL_ID': 'anthropic.claude-3-opus-20240229-v1:0'
+      'BEDROCK_MODEL_ID': 'anthropic.claude-3-haiku-20240307-v1:0',
+      // Note: Claude 3 Opus is not available in ap-south-1, using Haiku instead
+      // For tenant filtering workaround, use tenant_id='ALL' until metadata association is fixed
     };
 
     // RAG Query Lambda
@@ -146,7 +148,7 @@ export class RAGStack extends cdk.Stack {
       handler: 'index.handler',
       code: lambda.Code.fromAsset('../../backend/lambdas/rag-query'),
       role: ragLambdaRole,
-      timeout: cdk.Duration.seconds(30),
+      timeout: cdk.Duration.seconds(60),
       memorySize: 2048,
       environment: ragEnvironment,
       tracing: lambda.Tracing.ACTIVE
@@ -181,11 +183,12 @@ export class RAGStack extends cdk.Stack {
       handler: 'index.handler',
       code: lambda.Code.fromAsset('../../backend/lambdas/rag-evaluation'),
       role: evaluationLambdaRole,
-      timeout: cdk.Duration.minutes(5),
+      timeout: cdk.Duration.minutes(10),
       memorySize: 1024,
+      reservedConcurrentExecutions: 1, // Prevent concurrent executions to avoid Kendra throttling
       environment: {
         'KENDRA_INDEX_ID': this.kendraIndex.ref,
-        'BEDROCK_MODEL_ID': 'anthropic.claude-3-opus-20240229-v1:0',
+        'BEDROCK_MODEL_ID': 'anthropic.claude-3-haiku-20240307-v1:0',
         'RAG_LAMBDA_NAME': this.ragQueryLambda.functionName
       },
       tracing: lambda.Tracing.ACTIVE

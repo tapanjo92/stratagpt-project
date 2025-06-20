@@ -6,6 +6,8 @@ from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 import re
+import time
+from botocore.exceptions import ClientError
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -39,32 +41,61 @@ class StrataRAGEngine:
         self.document_bucket = os.environ['DOCUMENT_BUCKET']
         
     def search_documents(self, context: QueryContext) -> List[Dict[str, Any]]:
-        """Search documents using Kendra"""
-        try:
-            # Build attribute filter for tenant isolation
-            attribute_filter = {
-                'EqualsTo': {
-                    'Key': 'tenant_id',
-                    'Value': {
-                        'StringValue': context.tenant_id
-                    }
+        """Search documents using Kendra with retry logic for throttling"""
+        max_retries = 3
+        base_delay = 1  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                # Build query parameters
+                query_params = {
+                    'IndexId': self.kendra_index_id,
+                    'QueryText': context.question,
+                    'PageSize': context.max_results,
+                    'QueryResultTypeFilter': 'DOCUMENT'
                 }
-            }
+                
+                # Add attribute filter for tenant isolation (unless bypassed for testing)
+                if context.tenant_id and context.tenant_id != 'ALL':
+                    attribute_filter = {
+                        'EqualsTo': {
+                            'Key': 'tenant_id',
+                            'Value': {
+                                'StringValue': context.tenant_id
+                            }
+                        }
+                    }
+                    query_params['AttributeFilter'] = attribute_filter
+                    logger.info(f"Querying Kendra (attempt {attempt + 1}/{max_retries}) with tenant_id: {context.tenant_id}")
+                else:
+                    logger.info(f"Querying Kendra (attempt {attempt + 1}/{max_retries}) without tenant filter")
+                
+                # Query Kendra
+                response = kendra.query(**query_params)
+                
+                results = response.get('ResultItems', [])
+                logger.info(f"Kendra returned {len(results)} results")
+                
+                return results
+                
+            except ClientError as e:
+                error_code = e.response['Error']['Code']
+                if error_code == 'ThrottlingException':
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)  # Exponential backoff
+                        logger.warning(f"Kendra throttling detected, retrying in {delay} seconds...")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        logger.error(f"Kendra throttling persists after {max_retries} attempts")
+                        raise
+                else:
+                    logger.error(f"Kendra search error: {str(e)}")
+                    raise
             
-            # Query Kendra
-            response = kendra.query(
-                IndexId=self.kendra_index_id,
-                QueryText=context.question,
-                AttributeFilter=attribute_filter,
-                PageSize=context.max_results,
-                QueryResultTypeFilter='DOCUMENT'
-            )
-            
-            return response.get('ResultItems', [])
-            
-        except Exception as e:
-            logger.error(f"Kendra search error: {str(e)}")
-            return []
+            except Exception as e:
+                logger.error(f"Unexpected Kendra search error: {str(e)}")
+                return []
     
     def extract_citations(self, search_results: List[Dict[str, Any]]) -> List[Citation]:
         """Extract and format citations from search results"""

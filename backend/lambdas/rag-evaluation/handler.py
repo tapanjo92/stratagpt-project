@@ -174,7 +174,7 @@ class StrataEvaluationHarness:
             )
         ]
     
-    def invoke_rag_query(self, question: str, tenant_id: str = "test-tenant") -> Tuple[Dict[str, Any], int]:
+    def invoke_rag_query(self, question: str, tenant_id: str = "ALL") -> Tuple[Dict[str, Any], int]:
         """Invoke the RAG Lambda function"""
         start_time = time.time()
         

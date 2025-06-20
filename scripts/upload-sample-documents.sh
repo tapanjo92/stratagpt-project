@@ -33,14 +33,16 @@ echo "Creating Kendra metadata files..."
 for file in /root/strata-project/data/sample-strata-documents/*.json; do
     filename=$(basename "$file" .json)
     
-    # Create Kendra metadata JSON
-    jq '{
-        "DocumentId": .title,
+    # Create Kendra metadata JSON  
+    export BUCKET_NAME
+    jq --arg tenant_id "$TENANT_ID" --arg bucket "$BUCKET_NAME" --arg fname "$filename" '{
+        "DocumentId": ($fname + ".txt"),
         "Attributes": {
-            "tenant_id": .tenant_id,
+            "tenant_id": $tenant_id,
             "document_type": .document_type,
             "_category": .document_type,
-            "_created_at": (now | strftime("%Y-%m-%dT%H:%M:%SZ"))
+            "_created_at": (now | strftime("%Y-%m-%dT%H:%M:%SZ")),
+            "_source_uri": ("s3://" + $bucket + "/" + $tenant_id + "/documents/" + $fname + ".txt")
         }
     }' "$file" > "/tmp/${filename}.metadata.json"
     
