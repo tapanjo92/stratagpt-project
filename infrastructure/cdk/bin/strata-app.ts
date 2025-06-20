@@ -7,6 +7,7 @@ import { ComputeStack } from '../stacks/compute-stack';
 import { IngestionStack } from '../stacks/ingestion-stack-v2';
 import { OpenSearchStack } from '../stacks/opensearch-stack';
 import { MonitoringStack } from '../stacks/monitoring-stack';
+import { RAGStack } from '../stacks/rag-stack';
 
 const app = new cdk.App();
 
@@ -50,6 +51,13 @@ const ingestionStack = new IngestionStack(app, `${stackPrefix}-Ingestion-${envir
 const monitoringStack = new MonitoringStack(app, `${stackPrefix}-Monitoring-${environment}`, {
   env,
   description: 'Monitoring and observability resources'
+});
+
+const ragStack = new RAGStack(app, `${stackPrefix}-RAG-${environment}`, {
+  env,
+  documentBucket: storageStack.documentBucket,
+  openSearchDomain: openSearchStack.domain,
+  description: 'RAG and knowledge base resources'
 });
 
 app.synth();

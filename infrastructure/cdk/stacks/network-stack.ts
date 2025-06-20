@@ -11,22 +11,22 @@ export class NetworkStack extends cdk.Stack {
     this.vpc = new ec2.Vpc(this, 'StrataVpc', {
       maxAzs: 2,
       natGateways: 1,
-      ipAddresses: ec2.IpAddresses.cidr('10.0.0.0/16'),
+      ipAddresses: ec2.IpAddresses.cidr('10.100.0.0/24'),
       subnetConfiguration: [
         {
           name: 'Public',
           subnetType: ec2.SubnetType.PUBLIC,
-          cidrMask: 24
+          cidrMask: 27
         },
         {
           name: 'Private',
           subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
-          cidrMask: 24
+          cidrMask: 27
         },
         {
           name: 'Isolated',
           subnetType: ec2.SubnetType.PRIVATE_ISOLATED,
-          cidrMask: 24
+          cidrMask: 27
         }
       ],
       enableDnsHostnames: true,

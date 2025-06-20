@@ -1,75 +1,55 @@
 import * as cdk from 'aws-cdk-lib';
 import * as opensearch from 'aws-cdk-lib/aws-opensearchservice';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 
 export interface OpenSearchStackProps extends cdk.StackProps {
-  vpc: ec2.Vpc;
+  // Remove VPC requirement for simpler setup
 }
 
 export class OpenSearchStack extends cdk.Stack {
   public readonly domain: opensearch.Domain;
 
-  constructor(scope: Construct, id: string, props: OpenSearchStackProps) {
+  constructor(scope: Construct, id: string, props?: OpenSearchStackProps) {
     super(scope, id, props);
 
     const domainName = 'strata-vectors';
 
-    const securityGroup = new ec2.SecurityGroup(this, 'OpenSearchSecurityGroup', {
-      vpc: props.vpc,
-      description: 'Security group for OpenSearch domain',
-      allowAllOutbound: true
-    });
-
-    securityGroup.addIngressRule(
-      ec2.Peer.ipv4(props.vpc.vpcCidrBlock),
-      ec2.Port.tcp(443),
-      'Allow HTTPS from VPC'
-    );
-
+    // Simpler configuration without VPC
     this.domain = new opensearch.Domain(this, 'VectorSearchDomain', {
       domainName,
       version: opensearch.EngineVersion.OPENSEARCH_2_11,
       capacity: {
         masterNodes: 0,
-        dataNodes: 2,
-        dataNodeInstanceType: 'r6g.large.search'
+        dataNodes: 1,  // Start with single node for cost optimization
+        dataNodeInstanceType: 't3.small.search'  // Smaller instance for testing
       },
       ebs: {
-        volumeSize: 100,
+        volumeSize: 20,  // Smaller volume for testing
         volumeType: ec2.EbsDeviceVolumeType.GP3
       },
       nodeToNodeEncryption: true,
       encryptionAtRest: {
         enabled: true
       },
-      vpc: props.vpc,
-      vpcSubnets: [{
-        subnets: [props.vpc.selectSubnets({
-          subnetType: ec2.SubnetType.PRIVATE_ISOLATED
-        }).subnets[0]]
-      }],
-      securityGroups: [securityGroup],
       enforceHttps: true,
+      useUnsignedBasicAuth: true,  // Simple auth for testing
       fineGrainedAccessControl: {
-        masterUserArn: new iam.ArnPrincipal(
-          `arn:aws:iam::${this.account}:root`
-        ).arn
+        masterUserName: 'admin',
+        masterUserPassword: cdk.SecretValue.unsafePlainText('StrataAdmin123!')  // Change in production
       },
       logging: {
-        slowSearchLogEnabled: true,
-        appLogEnabled: true,
-        slowIndexLogEnabled: true
+        slowSearchLogEnabled: false,  // Disable to reduce costs
+        appLogEnabled: false,
+        slowIndexLogEnabled: false
       },
-      removalPolicy: cdk.RemovalPolicy.RETAIN
+      removalPolicy: cdk.RemovalPolicy.DESTROY  // For easy cleanup
     });
 
-    // For VPC deployments, access is controlled via security groups, not resource policies
-    // The security group already restricts access to the VPC CIDR
+    // Simple access policy
     const accessPolicy = new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
-      principals: [new iam.AnyPrincipal()],
+      principals: [new iam.ArnPrincipal(`arn:aws:iam::${this.account}:root`)],
       actions: ['es:*'],
       resources: [`${this.domain.domainArn}/*`]
     });
@@ -84,6 +64,11 @@ export class OpenSearchStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'OpenSearchDomainArn', {
       value: this.domain.domainArn,
       exportName: `${this.stackName}-OpenSearchArn`
+    });
+
+    new cdk.CfnOutput(this, 'OpenSearchUsername', {
+      value: 'admin',
+      description: 'OpenSearch master username'
     });
   }
 }
