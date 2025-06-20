@@ -137,9 +137,9 @@ export class RAGStack extends cdk.Stack {
       'KENDRA_INDEX_ID': this.kendraIndex.ref,
       'OPENSEARCH_ENDPOINT': props.openSearchDomain.domainEndpoint,
       'DOCUMENT_BUCKET': props.documentBucket.bucketName,
-      'BEDROCK_MODEL_ID': 'anthropic.claude-3-haiku-20240307-v1:0',
-      // Note: Claude 3 Opus is not available in ap-south-1, using Haiku instead
-      // For tenant filtering workaround, use tenant_id='ALL' until metadata association is fixed
+      'BEDROCK_MODEL_ID': 'anthropic.claude-sonnet-4-20250514-v1:0',
+      'USE_OPENSEARCH': 'true',  // Switch to OpenSearch for better tenant filtering
+      // Using Claude Sonnet 4 - latest model available in ap-south-1
     };
 
     // RAG Query Lambda
@@ -188,7 +188,7 @@ export class RAGStack extends cdk.Stack {
       reservedConcurrentExecutions: 1, // Prevent concurrent executions to avoid Kendra throttling
       environment: {
         'KENDRA_INDEX_ID': this.kendraIndex.ref,
-        'BEDROCK_MODEL_ID': 'anthropic.claude-3-haiku-20240307-v1:0',
+        'BEDROCK_MODEL_ID': 'anthropic.claude-sonnet-4-20250514-v1:0',
         'RAG_LAMBDA_NAME': this.ragQueryLambda.functionName
       },
       tracing: lambda.Tracing.ACTIVE
