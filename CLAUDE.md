@@ -24,7 +24,7 @@ Building a Q&A system for Australian strata management documents using AWS servi
 9. **Auth Stack**: Cognito User Pools with multi-tenant support
 
 ### Recent Updates:
-- Changed Bedrock model to Claude Sonnet 4 (latest model in ap-south-1)
+- **UPDATED: Changed Bedrock model to Claude 3 Haiku** (faster, cheaper, fewer rate limits)
 - **IMPLEMENTED: Custom Kendra ingestion with proper tenant isolation**
 - **FIXED: Tenant isolation now working correctly with batch_put_document API**
 - **AUTOMATED: Document ingestion via EventBridge rules in Integration Stack**
@@ -96,7 +96,7 @@ npm run storybook
 7. Phase 3.4: Admin dashboard
 
 ### Technical Details:
-- Using Bedrock Claude Sonnet 4 for answer generation
+- **Using Bedrock Claude 3 Haiku for answer generation** (optimized for speed/cost)
 - Titan embeddings for vector search  
 - Kendra for document search with AttributeFilter for tenant isolation
 - **Multi-tenant isolation WORKING via custom ingestion Lambda**

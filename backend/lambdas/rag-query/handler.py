@@ -39,7 +39,7 @@ class Citation:
 class StrataRAGEngine:
     def __init__(self):
         self.kendra_index_id = os.environ.get('KENDRA_INDEX_ID', '')
-        self.bedrock_model_id = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-5-sonnet-20241022-v2:0')
+        self.bedrock_model_id = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-haiku-20240307-v1:0')
         self.document_bucket = os.environ['DOCUMENT_BUCKET']
         self.use_opensearch = os.environ.get('USE_OPENSEARCH', 'true').lower() == 'true'
         

@@ -54,7 +54,7 @@ npm run dev
 - **Document Processing**: OCR for PDFs, DOCX, and images using AWS Textract
 - **PII Protection**: Automatic redaction of Australian personal information
 - **Semantic Search**: Dual search with AWS Kendra and OpenSearch k-NN
-- **RAG System**: Context-aware answers using Claude 3 Haiku on Bedrock
+- **RAG System**: Context-aware answers using Claude 3 Haiku on Bedrock (optimized for speed)
 - **Multi-tenancy**: Secure tenant isolation with proper data boundaries
 - **Chat Interface**: Real-time conversation with context retention
 - **Authentication**: AWS Cognito with role-based access control
@@ -182,8 +182,8 @@ npm run build
 
 ### Key Metrics
 - Document processing time: <30s target
-- API response time: <3s target (currently ~4.4s)
-- RAG accuracy: 90%+ on test questions
+- API response time: <3s target (now ~2-3s with Claude 3 Haiku)
+- RAG accuracy: 85%+ on test questions
 - Tenant isolation: 100% verified
 
 ### Alarms

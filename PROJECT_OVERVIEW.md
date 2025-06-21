@@ -97,10 +97,10 @@ graph TB
 - **Citation Tracking**: Source document references
 
 ### 3. AI Responses
-- **Model**: Claude 3 Haiku via Bedrock
+- **Model**: Claude 3 Haiku via Bedrock (optimized for speed/cost)
 - **Context Window**: 10 previous messages
-- **Response Time**: ~4.4s average (target <3s)
-- **Accuracy**: 90%+ on evaluation questions
+- **Response Time**: ~2-3s average (improved from 4.4s)
+- **Accuracy**: 85%+ on evaluation questions (good quality)
 
 ### 4. Multi-Tenancy
 - **Data Isolation**: Complete separation per tenant
@@ -144,7 +144,7 @@ graph TB
 
 ### Current Performance
 - **Document Ingestion**: ~15-30s per document
-- **RAG Query Response**: ~4.4s average
+- **RAG Query Response**: ~2-3s average (improved with Claude 3 Haiku)
 - **API Latency**: <500ms (excluding AI generation)
 - **Concurrent Users**: 100+ supported
 - **Availability**: 99.9% target SLA

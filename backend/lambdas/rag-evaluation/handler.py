@@ -35,7 +35,7 @@ class EvaluationResult:
 class StrataEvaluationHarness:
     def __init__(self):
         self.rag_lambda_name = os.environ.get('RAG_LAMBDA_NAME', '')
-        self.bedrock_model_id = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-sonnet-4-20250514-v1:0')
+        self.bedrock_model_id = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-haiku-20240307-v1:0')
         
         # Define test questions for Australian strata context
         self.test_questions = [
@@ -314,7 +314,7 @@ class StrataEvaluationHarness:
         start_time = datetime.utcnow()
         results = []
         
-        for test_question in self.test_questions:
+        for i, test_question in enumerate(self.test_questions):
             result = self.run_single_test(test_question)
             results.append(result)
             
@@ -323,6 +323,10 @@ class StrataEvaluationHarness:
                        f"Score: {result.accuracy_score:.2f}, "
                        f"Time: {result.response_time_ms}ms, "
                        f"Passed: {result.passed}")
+            
+            # Add delay between requests to avoid rate limiting
+            if i < len(self.test_questions) - 1:  # Don't sleep after last question
+                time.sleep(2)  # 2 second delay between requests
         
         # Calculate summary statistics
         accuracy_scores = [r.accuracy_score for r in results]
