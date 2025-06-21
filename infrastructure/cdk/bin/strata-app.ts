@@ -22,6 +22,13 @@ const env = {
 const stackPrefix = app.node.tryGetContext('stackPrefix') || 'StrataGPT';
 const environment = app.node.tryGetContext('environment') || 'dev';
 
+// Apply cost allocation tags to all resources
+cdk.Tags.of(app).add('Project', 'StrataGPT');
+cdk.Tags.of(app).add('Environment', environment);
+cdk.Tags.of(app).add('ManagedBy', 'CDK');
+cdk.Tags.of(app).add('CostCenter', 'Engineering');
+cdk.Tags.of(app).add('Owner', 'DevOps');
+
 const networkStack = new NetworkStack(app, `${stackPrefix}-Network-${environment}`, {
   env,
   description: 'Network infrastructure for Strata GPT'

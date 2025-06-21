@@ -30,7 +30,10 @@ export class ApiStack extends cdk.Stack {
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
       timeToLiveAttribute: 'ttl',
-      pointInTimeRecovery: true,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true
+      },
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
     });
 
     this.messagesTable = new dynamodb.Table(this, 'MessagesTable', {
@@ -39,7 +42,10 @@ export class ApiStack extends cdk.Stack {
       sortKey: { name: 'timestamp_message_id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       removalPolicy: cdk.RemovalPolicy.DESTROY,
-      pointInTimeRecovery: true,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true
+      },
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
     });
 
     // Add GSI for querying messages by tenant
@@ -57,7 +63,7 @@ export class ApiStack extends cdk.Stack {
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'handler',
       timeout: cdk.Duration.seconds(300),
-      memorySize: 1024,
+      memorySize: 1769,  // Optimal for CPU-bound tasks (1 vCPU threshold)
       environment: {
         KENDRA_INDEX_ID: props.kendraIndexId,
         CONVERSATIONS_TABLE: this.conversationsTable.tableName,
@@ -77,13 +83,15 @@ export class ApiStack extends cdk.Stack {
       resources: [props.ragQueryFunctionArn],
     }));
 
-    // Grant Bedrock permissions
+    // Grant Bedrock permissions with specific model ARN
     chatResolverFunction.addToRolePolicy(new iam.PolicyStatement({
       actions: [
         'bedrock:InvokeModel',
         'bedrock:InvokeModelWithResponseStream',
       ],
-      resources: ['*'],
+      resources: [
+        `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0`
+      ],
     }));
 
     // Conversation Manager Lambda
@@ -93,7 +101,7 @@ export class ApiStack extends cdk.Stack {
       runtime: lambda.Runtime.PYTHON_3_11,
       handler: 'handler',
       timeout: cdk.Duration.seconds(30),
-      memorySize: 512,
+      memorySize: 256,  // Lightweight DynamoDB operations
       environment: {
         CONVERSATIONS_TABLE: this.conversationsTable.tableName,
         MESSAGES_TABLE: this.messagesTable.tableName,
@@ -127,7 +135,11 @@ export class ApiStack extends cdk.Stack {
         throttlingBurstLimit: 200,
       },
       defaultCorsPreflightOptions: {
-        allowOrigins: apigateway.Cors.ALL_ORIGINS,
+        allowOrigins: [
+          'https://stratagpt.com.au',
+          'https://app.stratagpt.com.au',
+          'http://localhost:3000',  // Development only
+        ],
         allowMethods: apigateway.Cors.ALL_METHODS,
         allowHeaders: [
           'Content-Type',
@@ -136,6 +148,7 @@ export class ApiStack extends cdk.Stack {
           'X-Api-Key',
           'X-Tenant-Id',
         ],
+        allowCredentials: true,
       },
     });
 
@@ -293,6 +306,51 @@ export class ApiStack extends cdk.Stack {
         ],
       }
     );
+
+    // Create usage plans for different tiers
+    const basicUsagePlan = this.api.addUsagePlan('BasicUsagePlan', {
+      name: 'Basic',
+      description: 'Basic tier - 100 requests per day',
+      throttle: {
+        rateLimit: 10,
+        burstLimit: 20
+      },
+      quota: {
+        limit: 100,
+        period: apigateway.Period.DAY
+      }
+    });
+
+    const standardUsagePlan = this.api.addUsagePlan('StandardUsagePlan', {
+      name: 'Standard',
+      description: 'Standard tier - 1000 requests per day',
+      throttle: {
+        rateLimit: 50,
+        burstLimit: 100
+      },
+      quota: {
+        limit: 1000,
+        period: apigateway.Period.DAY
+      }
+    });
+
+    const premiumUsagePlan = this.api.addUsagePlan('PremiumUsagePlan', {
+      name: 'Premium',
+      description: 'Premium tier - 10000 requests per day',
+      throttle: {
+        rateLimit: 100,
+        burstLimit: 200
+      },
+      quota: {
+        limit: 10000,
+        period: apigateway.Period.DAY
+      }
+    });
+
+    // Add stages to usage plans
+    basicUsagePlan.addApiStage({ stage: this.api.deploymentStage });
+    standardUsagePlan.addApiStage({ stage: this.api.deploymentStage });
+    premiumUsagePlan.addApiStage({ stage: this.api.deploymentStage });
 
     // Output API endpoint
     new cdk.CfnOutput(this, 'ApiEndpoint', {

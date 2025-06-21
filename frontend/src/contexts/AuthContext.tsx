@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { Amplify } from 'aws-amplify'
-import { signIn, signUp, signOut, getCurrentUser, confirmSignUp, resendSignUpCode } from 'aws-amplify/auth'
+import { signIn, signUp, signOut, getCurrentUser, confirmSignUp, resendSignUpCode, fetchAuthSession } from 'aws-amplify/auth'
 
 // Configure Amplify
 Amplify.configure({
@@ -49,17 +49,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const currentUser = await getCurrentUser()
       if (currentUser) {
-        // In a real app, fetch user details from your API
-        // For now, we'll use mock data
-        setUser({
-          username: currentUser.username,
-          email: currentUser.username, // Assuming username is email
-          tenantId: 'test-tenant', // This should come from user attributes
-          role: 'owner' // This should come from user attributes
-        })
+        // Fetch the actual user attributes from the auth session
+        const session = await fetchAuthSession()
+        const idToken = session.tokens?.idToken
+        
+        if (idToken) {
+          // Extract custom attributes from the ID token
+          const tenantId = idToken['custom:tenant_id'] || 'default'
+          const role = idToken['custom:role'] || 'owner'
+          const email = idToken['email'] || currentUser.username
+          
+          setUser({
+            username: currentUser.username,
+            email: email,
+            tenantId: tenantId,
+            role: role as 'owner' | 'manager' | 'admin'
+          })
+        } else {
+          // Fallback if no ID token
+          setUser({
+            username: currentUser.username,
+            email: currentUser.username,
+            tenantId: 'default',
+            role: 'owner'
+          })
+        }
       }
     } catch (err) {
-      console.log('Not authenticated')
+      console.log('Not authenticated:', err)
     } finally {
       setLoading(false)
     }

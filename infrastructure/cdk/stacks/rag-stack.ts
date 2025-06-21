@@ -81,24 +81,8 @@ export class RAGStack extends cdk.Stack {
     // Store the Kendra index ID for other stacks
     this.kendraIndexId = this.kendraIndex.ref;
 
-    // NOTE: We're keeping the S3 data source for backward compatibility
-    // but new documents will be ingested using the custom Lambda
-    const dataSource = new kendra.CfnDataSource(this, 'S3DataSource', {
-      indexId: this.kendraIndex.ref,
-      name: 'strata-documents-datasource',
-      type: 'S3',
-      dataSourceConfiguration: {
-        s3Configuration: {
-          bucketName: props.documentBucket.bucketName,
-          inclusionPrefixes: ['test-tenant/documents/'],
-          documentsMetadataConfiguration: {
-            s3Prefix: 'test-tenant/metadata/'
-          }
-        }
-      },
-      roleArn: kendraRole.roleArn,
-      schedule: 'cron(0 * * * ? *)' // Sync every hour (at minute 0)
-    });
+    // REMOVED S3 data source - using custom ingestion only for proper multi-tenant support
+    // All documents must be ingested via the custom Lambda to ensure proper tenant_id attributes
 
     // Create DynamoDB table for document tracking
     this.documentTrackingTable = new dynamodb.Table(this, 'DocumentTrackingTable', {
@@ -106,7 +90,9 @@ export class RAGStack extends cdk.Stack {
       partitionKey: { name: 'document_id', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       encryption: dynamodb.TableEncryption.AWS_MANAGED,
-      pointInTimeRecovery: true
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true
+      }
     });
 
     // Add GSI for tenant queries
@@ -162,7 +148,7 @@ export class RAGStack extends cdk.Stack {
       code: lambda.Code.fromAsset('../../backend/lambdas/kendra-custom-ingest'),
       role: kendraIngestRole,
       timeout: cdk.Duration.minutes(5),
-      memorySize: 1024,
+      memorySize: 512,  // Evaluation is less memory intensive
       environment: {
         'KENDRA_INDEX_ID': this.kendraIndex.ref,
         'DOCUMENT_TABLE': this.documentTrackingTable.tableName,
@@ -199,7 +185,9 @@ export class RAGStack extends cdk.Stack {
         'bedrock:InvokeModel',
         'bedrock:InvokeModelWithResponseStream'
       ],
-      resources: ['*']
+      resources: [
+        `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0`
+      ]
     }));
 
     ragLambdaRole.addToPolicy(new iam.PolicyStatement({
@@ -222,9 +210,8 @@ export class RAGStack extends cdk.Stack {
       'KENDRA_INDEX_ID': this.kendraIndex.ref,
       'OPENSEARCH_ENDPOINT': props.openSearchDomain.domainEndpoint,
       'DOCUMENT_BUCKET': props.documentBucket.bucketName,
-      'BEDROCK_MODEL_ID': 'anthropic.claude-sonnet-4-20250514-v1:0',
-      'USE_OPENSEARCH': 'true',  // Switch to OpenSearch for better tenant filtering
-      // Using Claude Sonnet 4 - latest model available in ap-south-1
+      'BEDROCK_MODEL_ID': 'anthropic.claude-3-haiku-20240307-v1:0',  // Using Haiku for speed/cost
+      'USE_OPENSEARCH': 'false'  // Use Kendra with proper AttributeFilter
     };
 
     // RAG Query Lambda
@@ -234,7 +221,7 @@ export class RAGStack extends cdk.Stack {
       code: lambda.Code.fromAsset('../../backend/lambdas/rag-query'),
       role: ragLambdaRole,
       timeout: cdk.Duration.seconds(60),
-      memorySize: 2048,
+      memorySize: 1769,  // Optimal for RAG workloads (1 vCPU threshold)
       environment: ragEnvironment,
       tracing: lambda.Tracing.ACTIVE
     });
@@ -262,7 +249,9 @@ export class RAGStack extends cdk.Stack {
       actions: [
         'bedrock:InvokeModel'
       ],
-      resources: ['*']
+      resources: [
+        `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0`
+      ]
     }));
 
     // Evaluation Lambda for testing
@@ -272,11 +261,11 @@ export class RAGStack extends cdk.Stack {
       code: lambda.Code.fromAsset('../../backend/lambdas/rag-evaluation'),
       role: evaluationLambdaRole,
       timeout: cdk.Duration.minutes(10),
-      memorySize: 1024,
+      memorySize: 512,  // Evaluation is less memory intensive
       reservedConcurrentExecutions: 1, // Prevent concurrent executions to avoid Kendra throttling
       environment: {
         'KENDRA_INDEX_ID': this.kendraIndex.ref,
-        'BEDROCK_MODEL_ID': 'anthropic.claude-sonnet-4-20250514-v1:0',
+        'BEDROCK_MODEL_ID': 'anthropic.claude-3-haiku-20240307-v1:0',  // Using Haiku for speed/cost
         'RAG_LAMBDA_NAME': this.ragQueryLambda.functionName
       },
       tracing: lambda.Tracing.ACTIVE

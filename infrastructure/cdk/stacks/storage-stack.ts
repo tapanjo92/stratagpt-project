@@ -59,7 +59,9 @@ export class StorageStack extends cdk.Stack {
       partitionKey: { name: 'tenantId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       encryption: dynamodb.TableEncryption.AWS_MANAGED,
-      pointInTimeRecovery: true,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true
+      },
       stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES
     });
 
@@ -76,7 +78,9 @@ export class StorageStack extends cdk.Stack {
       sortKey: { name: 'documentId', type: dynamodb.AttributeType.STRING },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
       encryption: dynamodb.TableEncryption.AWS_MANAGED,
-      pointInTimeRecovery: true,
+      pointInTimeRecoverySpecification: {
+        pointInTimeRecoveryEnabled: true
+      },
       stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES
     });
 
