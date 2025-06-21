@@ -1,1 +1,0 @@
-Test document for tenant-c with automatic ingestion. The building has 25 units total.

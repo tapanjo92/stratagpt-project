@@ -1,1 +1,0 @@
-{"statusCode": 200, "headers": {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"}, "body": "{\"answer\": \"I couldn't find any relevant documents to answer your question. Please ensure documents have been uploaded for your strata scheme.\", \"citations\": [], \"processing_time_ms\": 186}"}

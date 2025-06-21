@@ -9,6 +9,8 @@ import { OpenSearchStack } from '../stacks/opensearch-stack';
 import { MonitoringStack } from '../stacks/monitoring-stack';
 import { RAGStack } from '../stacks/rag-stack';
 import { IntegrationStack } from '../stacks/integration-stack';
+import { ApiStack } from '../stacks/api-stack';
+import { AuthStack } from '../stacks/auth-stack';
 
 const app = new cdk.App();
 
@@ -70,8 +72,25 @@ const integrationStack = new IntegrationStack(app, `${stackPrefix}-Integration-$
   description: 'Integration wiring for document processing'
 });
 
+// Auth stack for Cognito
+const authStack = new AuthStack(app, `${stackPrefix}-Auth-${environment}`, {
+  env,
+  description: 'Authentication and authorization'
+});
+
+// API stack for chat endpoints
+const apiStack = new ApiStack(app, `${stackPrefix}-API-${environment}`, {
+  env,
+  kendraIndexId: ragStack.kendraIndexId,
+  ragQueryFunctionArn: ragStack.ragQueryFunction.functionArn,
+  userPool: authStack.userPool,
+  description: 'Chat API endpoints'
+});
+
 // Ensure proper deployment order
 integrationStack.addDependency(storageStack);
 integrationStack.addDependency(ragStack);
+apiStack.addDependency(ragStack);
+apiStack.addDependency(authStack);
 
 app.synth();

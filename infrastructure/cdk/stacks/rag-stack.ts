@@ -16,7 +16,9 @@ export interface RAGStackProps extends cdk.StackProps {
 
 export class RAGStack extends cdk.Stack {
   public readonly kendraIndex: kendra.CfnIndex;
+  public readonly kendraIndexId: string;
   public readonly ragQueryLambda: lambda.Function;
+  public readonly ragQueryFunction: lambda.Function;
   public readonly evaluationLambda: lambda.Function;
   public readonly kendraIngestLambda: lambda.Function;
   public readonly documentTrackingTable: dynamodb.Table;
@@ -75,6 +77,9 @@ export class RAGStack extends cdk.Stack {
         value: 'dev'
       }]
     });
+    
+    // Store the Kendra index ID for other stacks
+    this.kendraIndexId = this.kendraIndex.ref;
 
     // NOTE: We're keeping the S3 data source for backward compatibility
     // but new documents will be ingested using the custom Lambda
@@ -233,6 +238,9 @@ export class RAGStack extends cdk.Stack {
       environment: ragEnvironment,
       tracing: lambda.Tracing.ACTIVE
     });
+    
+    // Also expose as ragQueryFunction for consistency
+    this.ragQueryFunction = this.ragQueryLambda;
 
     // Create a separate role for evaluation Lambda to avoid circular dependency
     const evaluationLambdaRole = new iam.Role(this, 'EvaluationLambdaRole', {
