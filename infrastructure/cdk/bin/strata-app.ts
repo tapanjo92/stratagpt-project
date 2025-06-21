@@ -8,6 +8,7 @@ import { IngestionStack } from '../stacks/ingestion-stack-v2';
 import { OpenSearchStack } from '../stacks/opensearch-stack';
 import { MonitoringStack } from '../stacks/monitoring-stack';
 import { RAGStack } from '../stacks/rag-stack';
+import { IntegrationStack } from '../stacks/integration-stack';
 
 const app = new cdk.App();
 
@@ -59,5 +60,18 @@ const ragStack = new RAGStack(app, `${stackPrefix}-RAG-${environment}`, {
   openSearchDomain: openSearchStack.domain,
   description: 'RAG and knowledge base resources'
 });
+
+// Integration stack to wire up cross-stack dependencies
+const integrationStack = new IntegrationStack(app, `${stackPrefix}-Integration-${environment}`, {
+  env,
+  documentBucket: storageStack.documentBucket,
+  kendraIngestLambda: ragStack.kendraIngestLambda,
+  ingestionStateMachine: ingestionStack.ingestionStateMachine,
+  description: 'Integration wiring for document processing'
+});
+
+// Ensure proper deployment order
+integrationStack.addDependency(storageStack);
+integrationStack.addDependency(ragStack);
 
 app.synth();

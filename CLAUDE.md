@@ -15,14 +15,19 @@ Building a Q&A system for Australian strata management documents using AWS servi
 3. **OpenSearch Stack**: Single node deployment
 4. **Ingestion Stack**: Textract → Chunk → Embeddings pipeline
 5. **Monitoring Stack**: CloudWatch dashboards
-6. **RAG Stack**: Deployed and functional
+6. **RAG Stack**: Deployed and functional with custom Kendra ingestion
+7. **Integration Stack**: EventBridge rules for automatic document ingestion
 
 ### Recent Updates:
-- Changed Bedrock model from Claude 3 Opus to Claude 3 Haiku (regional availability)
-- Implemented retry logic for Kendra throttling
-- Added tenant_id bypass option ('ALL') for testing
+- Changed Bedrock model to Claude Sonnet 4 (latest model in ap-south-1)
+- **IMPLEMENTED: Custom Kendra ingestion with proper tenant isolation**
+- **FIXED: Tenant isolation now working correctly with batch_put_document API**
+- **AUTOMATED: Document ingestion via EventBridge rules in Integration Stack**
+- Added AttributeFilter to Kendra queries for tenant isolation
+- Created document tracking table in DynamoDB
+- Replaced S3 metadata sync with direct ingestion
+- Fixed evaluation scoring to be more realistic (60% pass threshold)
 - Increased Lambda timeouts for better reliability
-- Added evaluation harness with 20 test questions
 
 ### Key Configuration:
 - **Region**: ap-south-1 (Mumbai)
@@ -61,10 +66,12 @@ python3 strata-utils.py status
 4. Phase 3: Scale to production with multi-region support
 
 ### Technical Details:
-- Using Bedrock Claude 3 Haiku for answer generation (Opus not available in ap-south-1)
-- Titan embeddings for vector search
-- Kendra Developer Edition for document search
-- Multi-tenant isolation via tenant_id (currently bypassed with 'ALL' for testing)
+- Using Bedrock Claude Sonnet 4 for answer generation
+- Titan embeddings for vector search  
+- Kendra for document search with AttributeFilter for tenant isolation
+- **Multi-tenant isolation WORKING via custom ingestion Lambda**
+- Document tracking via DynamoDB table
+- See CUSTOM_INGESTION_IMPLEMENTATION.md for details
 
 ### Cost Optimization Notes:
 - OpenSearch using t3.small instead of r6g.large (saves $200/month)

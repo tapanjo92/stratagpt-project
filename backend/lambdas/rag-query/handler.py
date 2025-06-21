@@ -8,6 +8,8 @@ from datetime import datetime
 import re
 import time
 from botocore.exceptions import ClientError
+# from opensearchpy import OpenSearch, RequestsHttpConnection
+# from requests_aws4auth import AWS4Auth
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -36,18 +38,151 @@ class Citation:
 
 class StrataRAGEngine:
     def __init__(self):
-        self.kendra_index_id = os.environ['KENDRA_INDEX_ID']
-        self.bedrock_model_id = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-opus-20240229-v1:0')
+        self.kendra_index_id = os.environ.get('KENDRA_INDEX_ID', '')
+        self.bedrock_model_id = os.environ.get('BEDROCK_MODEL_ID', 'anthropic.claude-3-5-sonnet-20241022-v2:0')
         self.document_bucket = os.environ['DOCUMENT_BUCKET']
+        self.use_opensearch = os.environ.get('USE_OPENSEARCH', 'true').lower() == 'true'
         
-    def search_documents(self, context: QueryContext) -> List[Dict[str, Any]]:
+        # Initialize OpenSearch client if needed
+        # Temporarily disabled for testing
+        self.opensearch_client = None
+            
+    def _init_opensearch(self):
+        """Initialize OpenSearch client with AWS authentication"""
+        opensearch_endpoint = os.environ['OPENSEARCH_ENDPOINT']
+        region = os.environ.get('AWS_REGION', 'ap-south-1')
+        
+        # Get AWS credentials
+        credentials = boto3.Session().get_credentials()
+        awsauth = AWS4Auth(
+            credentials.access_key,
+            credentials.secret_key,
+            region,
+            'es',
+            session_token=credentials.token
+        )
+        
+        # Create OpenSearch client
+        client = OpenSearch(
+            hosts=[{'host': opensearch_endpoint, 'port': 443}],
+            http_auth=awsauth,
+            use_ssl=True,
+            verify_certs=True,
+            connection_class=RequestsHttpConnection,
+            timeout=30
+        )
+        
+        return client
+        
+    def search_documents_opensearch(self, context: QueryContext) -> List[Dict[str, Any]]:
+        """Search documents using OpenSearch with proper tenant filtering"""
+        try:
+            # Build search query with tenant filtering
+            search_body = {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {
+                                "multi_match": {
+                                    "query": context.question,
+                                    "fields": ["content^2", "title^3", "chunk_text"],
+                                    "type": "best_fields",
+                                    "fuzziness": "AUTO"
+                                }
+                            },
+                            {
+                                "term": {
+                                    "tenant_id.keyword": context.tenant_id
+                                }
+                            }
+                        ]
+                    }
+                },
+                "size": context.max_results,
+                "_source": ["content", "title", "document_id", "page_number", "chunk_text", "s3_key"],
+                "highlight": {
+                    "fields": {
+                        "content": {"fragment_size": 200},
+                        "chunk_text": {"fragment_size": 200}
+                    }
+                }
+            }
+            
+            # Execute search
+            response = self.opensearch_client.search(
+                index="strata-documents",
+                body=search_body
+            )
+            
+            # Convert OpenSearch results to Kendra-like format
+            results = []
+            for hit in response['hits']['hits']:
+                source = hit['_source']
+                highlights = hit.get('highlight', {})
+                
+                # Extract highlighted text or use content
+                excerpt = ''
+                if 'content' in highlights:
+                    excerpt = ' ... '.join(highlights['content'])
+                elif 'chunk_text' in highlights:
+                    excerpt = ' ... '.join(highlights['chunk_text'])
+                else:
+                    excerpt = source.get('content', '')[:200] + '...'
+                
+                result = {
+                    'DocumentId': source.get('document_id', ''),
+                    'DocumentTitle': {
+                        'Text': source.get('title', 'Untitled Document')
+                    },
+                    'DocumentExcerpt': {
+                        'Text': excerpt
+                    },
+                    'ScoreAttributes': {
+                        'ScoreConfidence': self._score_to_confidence(hit['_score'])
+                    },
+                    'DocumentAttributes': [
+                        {
+                            'Key': '_source_uri',
+                            'Value': {
+                                'StringValue': f"s3://{self.document_bucket}/{source.get('s3_key', '')}"
+                            }
+                        },
+                        {
+                            'Key': 'page_number',
+                            'Value': {
+                                'LongValue': source.get('page_number', 1)
+                            }
+                        }
+                    ]
+                }
+                results.append(result)
+            
+            logger.info(f"OpenSearch returned {len(results)} results for tenant {context.tenant_id}")
+            return results
+            
+        except Exception as e:
+            logger.error(f"OpenSearch error: {str(e)}")
+            return []
+    
+    def _score_to_confidence(self, score: float) -> str:
+        """Convert OpenSearch score to Kendra-like confidence"""
+        if score > 10:
+            return 'VERY_HIGH'
+        elif score > 5:
+            return 'HIGH'
+        elif score > 2:
+            return 'MEDIUM'
+        else:
+            return 'LOW'
+    
+    def search_documents_kendra(self, context: QueryContext) -> List[Dict[str, Any]]:
         """Search documents using Kendra with retry logic for throttling"""
         max_retries = 3
         base_delay = 1  # seconds
         
         for attempt in range(max_retries):
             try:
-                # Build query parameters
+                # Build query parameters with tenant filtering
                 query_params = {
                     'IndexId': self.kendra_index_id,
                     'QueryText': context.question,
@@ -55,9 +190,10 @@ class StrataRAGEngine:
                     'QueryResultTypeFilter': 'DOCUMENT'
                 }
                 
-                # Add attribute filter for tenant isolation (unless bypassed for testing)
+                # Add tenant filtering using AttributeFilter
+                # Skip filtering if tenant_id is 'ALL' (for testing purposes)
                 if context.tenant_id and context.tenant_id != 'ALL':
-                    attribute_filter = {
+                    query_params['AttributeFilter'] = {
                         'EqualsTo': {
                             'Key': 'tenant_id',
                             'Value': {
@@ -65,10 +201,9 @@ class StrataRAGEngine:
                             }
                         }
                     }
-                    query_params['AttributeFilter'] = attribute_filter
-                    logger.info(f"Querying Kendra (attempt {attempt + 1}/{max_retries}) with tenant_id: {context.tenant_id}")
-                else:
-                    logger.info(f"Querying Kendra (attempt {attempt + 1}/{max_retries}) without tenant filter")
+                    logger.info(f"Added tenant filter for tenant_id: {context.tenant_id}")
+                
+                logger.info(f"Querying Kendra (attempt {attempt + 1}/{max_retries}) with tenant_id: {context.tenant_id}")
                 
                 # Query Kendra
                 response = kendra.query(**query_params)
@@ -96,6 +231,15 @@ class StrataRAGEngine:
             except Exception as e:
                 logger.error(f"Unexpected Kendra search error: {str(e)}")
                 return []
+    
+    def search_documents(self, context: QueryContext) -> List[Dict[str, Any]]:
+        """Main search method that chooses between OpenSearch and Kendra"""
+        if self.use_opensearch and self.opensearch_client:
+            logger.info("Using OpenSearch for document search")
+            return self.search_documents_opensearch(context)
+        else:
+            logger.info("Using Kendra for document search")
+            return self.search_documents_kendra(context)
     
     def extract_citations(self, search_results: List[Dict[str, Any]]) -> List[Citation]:
         """Extract and format citations from search results"""

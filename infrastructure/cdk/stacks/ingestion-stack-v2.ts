@@ -15,12 +15,15 @@ import { Construct } from 'constructs';
 export interface IngestionStackProps extends cdk.StackProps {
   documentBucket: s3.Bucket;
   openSearchDomain: opensearch.Domain;
+  kendraIndexId?: string;
+  kendraRoleArn?: string;
 }
 
 export class IngestionStack extends cdk.Stack {
   public readonly textractLambda: lambda.Function;
   public readonly chunkSanitizerLambda: lambda.Function;
   public readonly embeddingsLambda: lambda.Function;
+  public readonly kendraIngestLambda?: lambda.Function;
   public readonly ingestionStateMachine: sfn.StateMachine;
   public readonly dlq: sqs.Queue;
 

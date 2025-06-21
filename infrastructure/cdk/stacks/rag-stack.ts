@@ -5,6 +5,8 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as opensearch from 'aws-cdk-lib/aws-opensearchservice';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
+import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import { Construct } from 'constructs';
 
 export interface RAGStackProps extends cdk.StackProps {
@@ -16,6 +18,8 @@ export class RAGStack extends cdk.Stack {
   public readonly kendraIndex: kendra.CfnIndex;
   public readonly ragQueryLambda: lambda.Function;
   public readonly evaluationLambda: lambda.Function;
+  public readonly kendraIngestLambda: lambda.Function;
+  public readonly documentTrackingTable: dynamodb.Table;
 
   constructor(scope: Construct, id: string, props: RAGStackProps) {
     super(scope, id, props);
@@ -72,7 +76,8 @@ export class RAGStack extends cdk.Stack {
       }]
     });
 
-    // Create S3 data source for Kendra
+    // NOTE: We're keeping the S3 data source for backward compatibility
+    // but new documents will be ingested using the custom Lambda
     const dataSource = new kendra.CfnDataSource(this, 'S3DataSource', {
       indexId: this.kendraIndex.ref,
       name: 'strata-documents-datasource',
@@ -89,6 +94,81 @@ export class RAGStack extends cdk.Stack {
       roleArn: kendraRole.roleArn,
       schedule: 'cron(0 * * * ? *)' // Sync every hour (at minute 0)
     });
+
+    // Create DynamoDB table for document tracking
+    this.documentTrackingTable = new dynamodb.Table(this, 'DocumentTrackingTable', {
+      tableName: 'strata-documents',
+      partitionKey: { name: 'document_id', type: dynamodb.AttributeType.STRING },
+      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
+      encryption: dynamodb.TableEncryption.AWS_MANAGED,
+      pointInTimeRecovery: true
+    });
+
+    // Add GSI for tenant queries
+    this.documentTrackingTable.addGlobalSecondaryIndex({
+      indexName: 'tenant-index',
+      partitionKey: { name: 'tenant_id', type: dynamodb.AttributeType.STRING },
+      sortKey: { name: 'ingested_at', type: dynamodb.AttributeType.STRING }
+    });
+
+    // Create IAM role for custom Kendra ingestion Lambda
+    const kendraIngestRole = new iam.Role(this, 'KendraIngestLambdaRole', {
+      assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
+      managedPolicies: [
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('AWSXRayDaemonWriteAccess')
+      ]
+    });
+
+    // Grant permissions for Kendra ingestion
+    kendraIngestRole.addToPolicy(new iam.PolicyStatement({
+      actions: [
+        'kendra:BatchPutDocument',
+        'kendra:BatchDeleteDocument'
+      ],
+      resources: [this.kendraIndex.attrArn]
+    }));
+
+    // Grant permission to pass the Kendra role
+    kendraIngestRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['iam:PassRole'],
+      resources: [kendraRole.roleArn],
+      conditions: {
+        StringEquals: {
+          'iam:PassedToService': 'kendra.amazonaws.com'
+        }
+      }
+    }));
+
+    // Grant S3 permissions
+    props.documentBucket.grantRead(kendraIngestRole);
+    kendraIngestRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['s3:GetObjectTagging'],
+      resources: [`${props.documentBucket.bucketArn}/*`]
+    }));
+
+    // Grant DynamoDB permissions
+    this.documentTrackingTable.grantReadWriteData(kendraIngestRole);
+
+    // Custom Kendra Ingestion Lambda
+    this.kendraIngestLambda = new lambda.Function(this, 'KendraIngestFunction', {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset('../../backend/lambdas/kendra-custom-ingest'),
+      role: kendraIngestRole,
+      timeout: cdk.Duration.minutes(5),
+      memorySize: 1024,
+      environment: {
+        'KENDRA_INDEX_ID': this.kendraIndex.ref,
+        'DOCUMENT_TABLE': this.documentTrackingTable.tableName,
+        'KENDRA_ROLE_ARN': kendraRole.roleArn
+      },
+      tracing: lambda.Tracing.ACTIVE
+    });
+
+    // NOTE: S3 event notifications would create a circular dependency
+    // For now, documents will be ingested by invoking the Lambda directly
+    // or through a separate trigger mechanism
 
     // Lambda role for RAG query
     const ragLambdaRole = new iam.Role(this, 'RAGLambdaRole', {
@@ -214,6 +294,16 @@ export class RAGStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'EvaluationLambdaArn', {
       value: this.evaluationLambda.functionArn,
       exportName: `${this.stackName}-EvaluationLambdaArn`
+    });
+
+    new cdk.CfnOutput(this, 'KendraIngestLambdaArn', {
+      value: this.kendraIngestLambda.functionArn,
+      exportName: `${this.stackName}-KendraIngestLambdaArn`
+    });
+
+    new cdk.CfnOutput(this, 'DocumentTrackingTableName', {
+      value: this.documentTrackingTable.tableName,
+      exportName: `${this.stackName}-DocumentTrackingTableName`
     });
   }
 }

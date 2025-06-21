@@ -1,0 +1,2 @@
+# AWS SDK is provided by Lambda runtime
+# No additional requirements needed

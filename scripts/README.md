@@ -51,7 +51,31 @@ python3 run-evaluation.py --region us-east-1
 - Response time metrics
 - Detailed results saved to JSON file
 
-### 4. `strata-utils.py`
+### 4. `ingest-to-kendra.py`
+Manually triggers custom Kendra ingestion for documents with proper tenant metadata.
+
+**Usage:**
+```bash
+# Ingest a specific document
+python3 ingest-to-kendra.py --key tenant-a/documents/bylaws.pdf
+
+# Ingest all documents for a tenant
+python3 ingest-to-kendra.py --tenant tenant-a
+
+# Dry run to see what would be processed
+python3 ingest-to-kendra.py --tenant tenant-a --dry-run
+
+# Process all documents in bucket
+python3 ingest-to-kendra.py --all
+```
+
+**Features:**
+- Direct ingestion using batch_put_document API
+- Proper tenant_id metadata association
+- Progress tracking and error reporting
+- Dry-run mode for testing
+
+### 5. `strata-utils.py`
 General utility script for common operations.
 
 **Usage:**
@@ -85,5 +109,7 @@ All Python scripts require:
 ## Notes
 
 - For production use, always specify tenant_id when querying
-- Currently using tenant_id='ALL' as a workaround for Kendra metadata filtering issue
+- ~~Currently using tenant_id='ALL' as a workaround for Kendra metadata filtering issue~~ **FIXED: Use custom ingestion**
 - Evaluation results are saved with timestamps for tracking improvements
+- Custom Kendra ingestion (ingest-to-kendra.py) ensures proper tenant isolation
+- The ingestion pipeline (Textract/chunking/embeddings) runs automatically via EventBridge

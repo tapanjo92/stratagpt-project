@@ -1,0 +1,1 @@
+{"statusCode": 207, "body": "{\"message\": \"Processed 1 documents\", \"successful\": 0, \"failed\": 1, \"results\": [{\"success\": false, \"document_id\": \"s3://strata-documents-809555764832-ap-south-1/tenant-a/documents/test-doc.txt\", \"error\": \"One and only one document data field can be set. Instead found: S3Path, ByteBuffer\"}]}"}

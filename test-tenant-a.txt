@@ -1,0 +1,1 @@
+Test document for tenant-a. The annual general meeting requires a quorum of 50% of unit entitlements.

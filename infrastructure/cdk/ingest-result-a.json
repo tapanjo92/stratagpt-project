@@ -1,0 +1,1 @@
+{"statusCode": 200, "body": "{\"message\": \"Processed 1 documents\", \"successful\": 1, \"failed\": 0, \"results\": [{\"success\": true, \"document_id\": \"s3://strata-documents-809555764832-ap-south-1/tenant-a/documents/test-doc.txt\", \"tenant_id\": \"tenant-a\", \"document_type\": \"test\", \"title\": \"Test Doc.Txt\"}]}"}

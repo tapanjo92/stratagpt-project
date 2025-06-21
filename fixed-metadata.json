@@ -1,0 +1,9 @@
+{
+  "Attributes": {
+    "tenant_id": "test-tenant",
+    "document_type": "capital-works",
+    "_category": "capital-works",
+    "_created_at": "2025-06-20T15:03:10Z"
+  },
+  "Title": "Sample Capital Works Plan - Strata Plan 12345"
+}

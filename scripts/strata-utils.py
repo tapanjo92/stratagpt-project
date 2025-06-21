@@ -24,7 +24,7 @@ class StrataUtils:
                 return func['FunctionName']
         raise Exception("RAG Lambda function not found")
     
-    def query_rag(self, question, tenant_id='ALL'):
+    def query_rag(self, question, tenant_id='test-tenant'):
         """Query the RAG system"""
         function_name = self.get_rag_lambda_name()
         
@@ -114,7 +114,7 @@ def main():
     # Query command
     query_parser = subparsers.add_parser('query', help='Query the RAG system')
     query_parser.add_argument('question', help='Question to ask')
-    query_parser.add_argument('--tenant', default='ALL', help='Tenant ID (default: ALL)')
+    query_parser.add_argument('--tenant', default='test-tenant', help='Tenant ID (default: test-tenant)')
     
     # Status command
     status_parser = subparsers.add_parser('status', help='Check system status')
